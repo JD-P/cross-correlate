@@ -31,36 +31,50 @@ import json
 import os
 
 def main():
-    parser = arpgarse.ArgumentParser()
+    parser = argparse.ArgumentParser()
     parser.add_argument("first", help="The first file to compare against in "
                                       "creating the profile.")
-    parser.add_argument("second", help="The second file to compare against in "
-                                        "creating the profile.")
-    parser.add_argument("profile_path", help="The filepath to the profile that"
-                                             " will be used for this"
-                                             " correlation.")
-    arguments = parser.parse_args()
+    #parser.add_argument("second", help="The second file to compare against in "
+    #                                    "creating the profile.")
+    #parser.add_argument("profile_path", help="The filepath to the profile that"
+    #                                         " will be used for this"
+    #                                         " correlation.")
+    args = parser.parse_args()
+    cc = CrossCorrelate()
+    with open(args.first, "rb") as input_file:
+        subset_lists = list(cc.process_file(input_file, 128))
+    for chunk in subset_lists:  # Debug
+        for subset in chunk:
+            print(subset)
+        print()
 
 class CrossCorrelate():
     """Cross correlate byte offsets between two files and adds their frequencies
         to a profile."""
-    def chunk_file(file, chunk_size):
-        """Chunk file into blocks according to chunk_size and return chunks as
-        list."""
-        chunks = []
-        chunk = None
-        while chunk != 'EOF':
-            chunk = file.read(chunk_size)
-            chunks.append({"chunk":chunk})
-        return chunks
 
-    def generate_subsets(chunks):
-        """Generate byte subsets from a list of chunk dicts."""
-        for chunk in chunks:
-            chunk_bytes = chunks[chunk]
+    def chunks(self, input_file, chunk_size):
+        """Chunk file into blocks with size chunk_size and return a
+        generator which yields them."""
+        while True:
+            chunk = input_file.read(chunk_size)
+            if len(chunk) == 0:
+                break
+            yield chunk
 
-    def fletcher_32(bytes):
-        for byte in bytes
+    def subsets(self, chunk):
+        """Generate byte subsets from a chunk."""
+        for i in range(1, len(chunk)+1):        # the current subset size
+            for j in range(0, len(chunk)-i+1):  # the current subset offset
+                yield chunk[j:j+i]
 
+    def fletcher_32(self, buf):
+        """Return the hash of a subset."""
+        return hash(buf)
 
+    def process_file(self, input_file, chunk_size):
+        """Generate a list of all subsets of of each chunk."""
+        for chunk in self.chunks(input_file, chunk_size):
+            yield list(self.subsets(chunk))
 
+if __name__ == '__main__':
+    main()
