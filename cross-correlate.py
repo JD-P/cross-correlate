@@ -61,7 +61,7 @@ class CrossCorrelate():
                 break
             yield chunk
 
-    def fletcher_16(bytes_obj):
+    def fletcher_16(self, bytes_obj):
         """Compute a fletcher 16 bit checksum with modular arithmetic."""
         simple = 255
         fletcher = 255
