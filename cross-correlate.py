@@ -59,8 +59,15 @@ class CrossCorrelate():
         for chunk in chunks:
             chunk_bytes = chunks[chunk]
 
-    def fletcher_32(bytes):
-        for byte in bytes
-
+    def fletcher_16(bytes_obj):
+        """Compute a fletcher 16 bit checksum with modular arithmetic."""
+        simple = 255
+        fletcher = 255
+        for byte in bytes_obj:
+            simple += byte
+            fletcher += simple
+        simple = (simple & 255) + (simple >> 8)
+        fletcher = (fletcher & 255) + (fletcher >> 8)
+        return fletcher << 8 | simple
 
 
