@@ -61,15 +61,24 @@ class CrossCorrelate():
                 break
             yield chunk
 
+    def fletcher_16(self, bytes_obj):
+        """Compute a fletcher 16 bit checksum with modular arithmetic."""
+        simple = 255
+        fletcher = 255
+        for byte in bytes_obj:
+            simple += byte
+            fletcher += simple
+        simple = (simple & 255) + (simple >> 8)
+        fletcher = (fletcher & 255) + (fletcher >> 8)
+        simple = (simple & 255) + (simple >> 8)
+        fletcher = (fletcher & 255) + (fletcher >> 8)
+        return fletcher << 8 | simple
+
     def subsets(self, chunk):
         """Generate byte subsets from a chunk."""
         for i in range(1, len(chunk)+1):        # the current subset size
             for j in range(0, len(chunk)-i+1):  # the current subset offset
                 yield chunk[j:j+i]
-
-    def fletcher_32(self, buf):
-        """Return the hash of a subset."""
-        return hash(buf)
 
     def process_file(self, input_file, chunk_size):
         """Generate a list of all subsets of of each chunk."""
