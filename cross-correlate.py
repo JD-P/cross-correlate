@@ -68,6 +68,8 @@ class CrossCorrelate():
             fletcher += simple
         simple = (simple & 255) + (simple >> 8)
         fletcher = (fletcher & 255) + (fletcher >> 8)
+        simple = (simple & 255) + (simple >> 8)
+        fletcher = (fletcher & 255) + (fletcher >> 8)
         return fletcher << 8 | simple
 
 
