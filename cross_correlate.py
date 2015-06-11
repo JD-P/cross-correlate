@@ -50,6 +50,8 @@ def main():
 class CrossCorrelate():
     """Cross correlate byte offsets between two files and adds their frequencies
         to a profile."""
+    Chunk = collections.namedtuple('Chunk', ['chunk', 'hashes'])
+    InputFile = collections.namedtuple('InputFile', ['name', 'type', 'chunks'])
 
     def gen_chunks(self, input_file, chunk_size):
         """Chunk file into blocks with size chunk_size and return a
@@ -81,11 +83,10 @@ class CrossCorrelate():
         hashes (tuple): The hashes for each subset in the chunk.
             hash [unnamed] (int): A hash of a subset of the chunk.
         """
-        Chunk = collections.namedtuple('Chunk', ['chunk', 'hashes'])
         chunks = self.gen_chunks(file_pointer, chunk_size)
         for chunk in chunks:
             hashes = tuple(self.gen_chunk_hashes(chunk))
-            yield Chunk(chunk, hashes)
+            yield self.Chunk(chunk, hashes)
 
     def fletcher_16(self, bytes_obj):
         """Compute a fletcher 16 bit checksum with modular arithmetic."""
@@ -109,10 +110,9 @@ class CrossCorrelate():
             hashes (tuple): The hashes for each subset in the chunk."""
         file_pointer = open(filepath, 'rb')
         fp = file_pointer
-        InputFile = collections.namedtuple('InputFile', ['name', 'type', 'chunks'])
         chunks = tuple(self.gen_file_chunks(fp, chunk_size))
         # This will just give the full filepath if we're on windows.
-        return InputFile(fp.name.split("/")[-1], file_type, chunks) 
+        return self.InputFile(fp.name.split("/")[-1], file_type, chunks) 
 
 if __name__ == '__main__':
     main()
