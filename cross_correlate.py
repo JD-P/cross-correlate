@@ -45,13 +45,16 @@ def main():
     cc = CrossCorrelate()
     
     output = cc.process_file(args.first, 128)
-    pprint.pprint(output) # Debug
+    for frequency in cc.list_hashes_by_frequency(output): # Debug
+        print(frequency)
 
 class CrossCorrelate():
     """Cross correlate byte offsets between two files and adds their frequencies
         to a profile."""
     Chunk = collections.namedtuple('Chunk', ['chunk', 'hashes'])
     InputFile = collections.namedtuple('InputFile', ['name', 'type', 'chunks'])
+    SubHash = collections.namedtuple('SubHash', ['subset', 'hash'])
+    HashFreqSub = collections.namedtuple('HashFreqSub', ['hash', 'frequency', 'subset'])
 
     def gen_chunks(self, input_file, chunk_size):
         """Chunk file into blocks with size chunk_size and return a
@@ -74,7 +77,7 @@ class CrossCorrelate():
         """Generate a tuple of all hashes of each subset of each chunk from a 
         given chunk."""
         for subset in self.gen_subsets(chunk):
-            yield self.fletcher_16(subset)
+            yield self.SubHash(subset, self.fletcher_16(subset))
 
     def gen_file_chunks(self, file_pointer, chunk_size):
         """Process the chunks in a file into Chunk namedtuples of the following
@@ -107,12 +110,39 @@ class CrossCorrelate():
         type: The type of file it was.
         chunks: A tuple of namedtuples of the form:
             chunk (bytes): The actual chunk data.
-            hashes (tuple): The hashes for each subset in the chunk."""
+            hashes (tuple): The hashes for each subset in the chunk along with 
+            the subset.
+        """
         file_pointer = open(filepath, 'rb')
         fp = file_pointer
         chunks = tuple(self.gen_file_chunks(fp, chunk_size))
         # This will just give the full filepath if we're on windows.
         return self.InputFile(fp.name.split("/")[-1], file_type, chunks) 
+
+    def list_hashes_by_frequency(self, InputFile):
+        """List the hashes from subsets of chunks in a given input file in 
+        descending order with the most frequent at the top. Each hash is given
+        as a three column tuple consisting of the following:
+        hash: The hash of the subset.
+        frequency: The number of times this hash appears in the file.
+        subset: The data of the subset the hash is of.
+        """
+        FreqHashDict = {}
+        for chunk in InputFile.chunks:
+            for _hash in chunk.hashes:
+                try:
+                    FreqHashDict[_hash] += 1
+                except KeyError:
+                    FreqHashDict[_hash] = 1
+        FreqHashList = []
+        for _hash in FreqHashDict:
+            FreqHashList.append((_hash[1], FreqHashDict[_hash], _hash[0]))
+        FreqHashList.sort(key=(lambda a: a[1]))
+        FreqHashList.reverse()
+        for hash_frequency_subset in FreqHashList:
+            yield self.HashFreqSub(hash_frequency_subset[0],
+                                   hash_frequency_subset[1],
+                                   hash_frequency_subset[2])
 
 if __name__ == '__main__':
     main()
