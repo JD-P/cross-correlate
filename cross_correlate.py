@@ -45,15 +45,16 @@ def main():
     cc = CrossCorrelate()
     
     output = cc.process_file(args.first, 128)
-    for frequency in cc.list_hashes_by_frequency(output): # Debug
+    for frequency in cc.list_hashes_by_frequency(output.frequencies): # Debug
         print(frequency)
 
 class CrossCorrelate():
     """Cross correlate byte offsets between two files and adds their frequencies
         to a profile."""
-    Chunk = collections.namedtuple('Chunk', ['chunk', 'hashes'])
-    InputFile = collections.namedtuple('InputFile', ['name', 'type', 'chunks'])
-    SubHash = collections.namedtuple('SubHash', ['subset', 'hash'])
+    Chunk = collections.namedtuple('Chunk', ['chunk', 'subset_slices'])
+    InputFile = collections.namedtuple('InputFile', ['name', 'type', 'frequencies', 'chunks'])
+    HashSlice = collections.namedtuple('SubHash', ['hash', 'start', 'end'])
+    SubSlice = collections.namedtuple('SubSlice', ['start', 'end'])
     HashFreqSub = collections.namedtuple('HashFreqSub', ['hash', 'frequency', 'subset'])
 
     def gen_chunks(self, input_file, chunk_size):
@@ -67,29 +68,50 @@ class CrossCorrelate():
                 break
             yield chunk
 
-    def gen_subsets(self, chunk):
+    def gen_slices(self, chunk):
         """Generate byte subsets from a chunk."""
         for i in range(1, len(chunk)+1):        # the current subset size
             for j in range(0, len(chunk)-i+1):  # the current subset offset
-                yield chunk[j:j+i]
+                yield self.SubSlice(j, j+i)
 
     def gen_chunk_hashes(self, chunk):
-        """Generate a tuple of all hashes of each subset of each chunk from a 
+        """Generate all hashes of each subset of each chunk from a 
         given chunk."""
-        for subset in self.gen_subsets(chunk):
-            yield self.SubHash(subset, self.fletcher_16(subset))
+        for _slice in self.gen_slices(chunk):
+            subset = chunk[_slice[0]:_slice[1]]
+            yield self.HashSlice(self.fletcher_16(subset), _slice[0], _slice[1])
 
     def gen_file_chunks(self, file_pointer, chunk_size):
         """Process the chunks in a file into Chunk namedtuples of the following
         form:
         chunk (bytes): The chunk data.
-        hashes (tuple): The hashes for each subset in the chunk.
-            hash [unnamed] (int): A hash of a subset of the chunk.
+        subset_slices (tuple): A tuple containing named tuples that tell where
+        to slice to generate subsets:
+            start: The start of the slice.
+            end: The end of the slice.
         """
         chunks = self.gen_chunks(file_pointer, chunk_size)
         for chunk in chunks:
+            subsets = tuple(self.gen_slices(chunk))
+            yield self.Chunk(chunk, subsets)
+
+    def create_hash_dict(self, file_pointer, chunk_size):
+        """Create a hash dict containing the frequencies of fletcher hashes of
+        subsets between chunks in the file. The dict has the following structure:
+        {hash:subset}
+        hash: The hash of the subset.
+        subset: The bytes object corresponding to the hash."""
+        chunks = self.gen_chunks(file_pointer, chunk_size)
+        hash_dict = {}
+        for chunk in chunks:
             hashes = tuple(self.gen_chunk_hashes(chunk))
-            yield self.Chunk(chunk, hashes)
+            for _hash in hashes:
+                subset = chunk[_hash[1]:_hash[2]]
+                try:
+                    hash_dict[(_hash[0], subset)] += 1
+                except KeyError:
+                    hash_dict[(_hash[0], subset)] = 1
+        return hash_dict
 
     def fletcher_16(self, bytes_obj):
         """Compute a fletcher 16 bit checksum with modular arithmetic."""
@@ -110,39 +132,25 @@ class CrossCorrelate():
         type: The type of file it was.
         chunks: A tuple of namedtuples of the form:
             chunk (bytes): The actual chunk data.
-            hashes (tuple): The hashes for each subset in the chunk along with 
-            the subset.
+            hashes (dict): The hashes for each distinct subset in the chunk as
+            keys with their frequencies as values.
         """
         file_pointer = open(filepath, 'rb')
         fp = file_pointer
+        frequencies = self.create_hash_dict(fp, chunk_size)
         chunks = tuple(self.gen_file_chunks(fp, chunk_size))
         # This will just give the full filepath if we're on windows.
-        return self.InputFile(fp.name.split("/")[-1], file_type, chunks) 
+        return self.InputFile(fp.name.split("/")[-1], file_type, frequencies, chunks) 
 
-    def list_hashes_by_frequency(self, InputFile):
-        """List the hashes from subsets of chunks in a given input file in 
-        descending order with the most frequent at the top. Each hash is given
-        as a three column tuple consisting of the following:
-        hash: The hash of the subset.
-        frequency: The number of times this hash appears in the file.
-        subset: The data of the subset the hash is of.
-        """
-        FreqHashDict = {}
-        for chunk in InputFile.chunks:
-            for _hash in chunk.hashes:
-                try:
-                    FreqHashDict[_hash] += 1
-                except KeyError:
-                    FreqHashDict[_hash] = 1
-        FreqHashList = []
-        for _hash in FreqHashDict:
-            FreqHashList.append((_hash[1], FreqHashDict[_hash], _hash[0]))
-        FreqHashList.sort(key=(lambda a: a[1]))
-        FreqHashList.reverse()
-        for hash_frequency_subset in FreqHashList:
-            yield self.HashFreqSub(hash_frequency_subset[0],
-                                   hash_frequency_subset[1],
-                                   hash_frequency_subset[2])
+    def list_hashes_by_frequency(self, hash_dict):
+        """Convert hash dict into a list so that it can be sorted and displayed
+        in descending order with the most frequent hash at the top."""
+        hash_list = []
+        for _hash in hash_dict:
+            hash_list.append(self.HashFreqSub(_hash[0], hash_dict[_hash], _hash[1]))
+        hash_list.sort(key=(lambda a: a[1]))
+        hash_list.reverse()
+        return tuple(hash_list)
 
 if __name__ == '__main__':
     main()
