@@ -28,7 +28,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
      
 import argparse
 import json
+import pprint
 import os
+import collections
 
 def main():
     parser = argparse.ArgumentParser()
@@ -41,25 +43,49 @@ def main():
     #                                         " correlation.")
     args = parser.parse_args()
     cc = CrossCorrelate()
-    with open(args.first, "rb") as input_file:
-        subset_lists = list(cc.process_file(input_file, 128))
-    for chunk in subset_lists:  # Debug
-        for subset in chunk:
-            print(subset)
-        print()
+    
+    output = cc.process_file(args.first, 128)
+    pprint.pprint(output) # Debug
 
 class CrossCorrelate():
     """Cross correlate byte offsets between two files and adds their frequencies
         to a profile."""
 
-    def chunks(self, input_file, chunk_size):
+    def gen_chunks(self, input_file, chunk_size):
         """Chunk file into blocks with size chunk_size and return a
         generator which yields them."""
+        if chunk_size < 1:
+            raise ValueError("Chunk size given wasn't at least one!")
         while True:
             chunk = input_file.read(chunk_size)
             if len(chunk) == 0:
                 break
             yield chunk
+
+    def gen_subsets(self, chunk):
+        """Generate byte subsets from a chunk."""
+        for i in range(1, len(chunk)+1):        # the current subset size
+            for j in range(0, len(chunk)-i+1):  # the current subset offset
+                yield chunk[j:j+i]
+
+    def gen_chunk_hashes(self, chunk):
+        """Generate a tuple of all hashes of each subset of each chunk from a 
+        given chunk."""
+        for subset in self.gen_subsets(chunk):
+            yield self.fletcher_16(subset)
+
+    def gen_file_chunks(self, file_pointer, chunk_size):
+        """Process the chunks in a file into Chunk namedtuples of the following
+        form:
+        chunk (bytes): The chunk data.
+        hashes (tuple): The hashes for each subset in the chunk.
+            hash [unnamed] (int): A hash of a subset of the chunk.
+        """
+        Chunk = collections.namedtuple('Chunk', ['chunk', 'hashes'])
+        chunks = self.gen_chunks(file_pointer, chunk_size)
+        for chunk in chunks:
+            hashes = tuple(self.gen_chunk_hashes(chunk))
+            yield Chunk(chunk, hashes)
 
     def fletcher_16(self, bytes_obj):
         """Compute a fletcher 16 bit checksum with modular arithmetic."""
@@ -74,16 +100,19 @@ class CrossCorrelate():
         fletcher = (fletcher & 255) + (fletcher >> 8)
         return fletcher << 8 | simple
 
-    def subsets(self, chunk):
-        """Generate byte subsets from a chunk."""
-        for i in range(1, len(chunk)+1):        # the current subset size
-            for j in range(0, len(chunk)-i+1):  # the current subset offset
-                yield chunk[j:j+i]
-
-    def process_file(self, input_file, chunk_size):
-        """Generate a list of all subsets of of each chunk."""
-        for chunk in self.chunks(input_file, chunk_size):
-            yield list(self.subsets(chunk))
+    def process_file(self, filepath, chunk_size, file_type='binary'):
+        """Process a file and return a namedtuple containing the following:
+        name: The original name of the file before processing.
+        type: The type of file it was.
+        chunks: A tuple of namedtuples of the form:
+            chunk (bytes): The actual chunk data.
+            hashes (tuple): The hashes for each subset in the chunk."""
+        file_pointer = open(filepath, 'rb')
+        fp = file_pointer
+        InputFile = collections.namedtuple('InputFile', ['name', 'type', 'chunks'])
+        chunks = tuple(self.gen_file_chunks(fp, chunk_size))
+        # This will just give the full filepath if we're on windows.
+        return InputFile(fp.name.split("/")[-1], file_type, chunks) 
 
 if __name__ == '__main__':
     main()
