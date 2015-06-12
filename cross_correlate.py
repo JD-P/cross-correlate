@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015, John David Pressman
+Copyright (c) 2015, John David Pressman and Katherine Crowson
     All rights reserved.
      
 Redistribution and use in source and binary forms, with or without
