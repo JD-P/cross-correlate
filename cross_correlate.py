@@ -75,8 +75,7 @@ class CrossCorrelate():
                 yield self.SubSlice(j, j+i)
 
     def gen_chunk_hashes(self, chunk):
-        """Generate all hashes of each subset of each chunk from a 
-        given chunk."""
+        """Generate all hashes of each subset of a given chunk."""
         for _slice in self.gen_slices(chunk):
             subset = chunk[_slice[0]:_slice[1]]
             yield self.HashSlice(self.fletcher_16(subset), _slice[0], _slice[1])
@@ -95,23 +94,28 @@ class CrossCorrelate():
             subsets = tuple(self.gen_slices(chunk))
             yield self.Chunk(chunk, subsets)
 
-    def create_hash_dict(self, file_pointer, chunk_size):
+    def create_hash_table(self, file_pointer, chunk_size):
         """Create a hash dict containing the frequencies of fletcher hashes of
         subsets between chunks in the file. The dict has the following structure:
         {hash:subset}
         hash: The hash of the subset.
         subset: The bytes object corresponding to the hash."""
+        fletcher_space = 65536
+        hash_values = list(range(1, fletcher_space + 1))
+        hash_frequencies = list()
+        for integer in range(1, fletcher_space + 1):
+            hash_frequencies.append(0)
         chunks = self.gen_chunks(file_pointer, chunk_size)
-        hash_dict = {}
         for chunk in chunks:
-            hashes = tuple(self.gen_chunk_hashes(chunk))
+            hashes = self.gen_chunk_hashes(chunk)
             for _hash in hashes:
-                subset = chunk[_hash[1]:_hash[2]]
+                subset = chunk[_hash.start:_hash.end]
                 try:
-                    hash_dict[(_hash[0], subset)] += 1
-                except KeyError:
-                    hash_dict[(_hash[0], subset)] = 1
-        return hash_dict
+                    hash_values[_hash.hash].add(subset)
+                except AttributeError:
+                    hash_values[_hash.hash] = set(subset)
+                hash_frequencies[_hash.hash] += 1
+        return (hash_values, hash_frequencies)
 
     def fletcher_16(self, bytes_obj):
         """Compute a fletcher 16 bit checksum with modular arithmetic."""
@@ -137,20 +141,18 @@ class CrossCorrelate():
         """
         file_pointer = open(filepath, 'rb')
         fp = file_pointer
-        frequencies = self.create_hash_dict(fp, chunk_size)
+        frequencies = self.create_hash_table(fp, chunk_size)
         chunks = tuple(self.gen_file_chunks(fp, chunk_size))
         # This will just give the full filepath if we're on windows.
         return self.InputFile(fp.name.split("/")[-1], file_type, frequencies, chunks) 
 
-    def list_hashes_by_frequency(self, hash_dict):
+    def list_hashes_by_frequency(self, hash_table):
         """Convert hash dict into a list so that it can be sorted and displayed
         in descending order with the most frequent hash at the top."""
-        hash_list = []
-        for _hash in hash_dict:
-            hash_list.append(self.HashFreqSub(_hash[0], hash_dict[_hash], _hash[1]))
+        hash_list = hash_table[1]
         hash_list.sort(key=(lambda a: a[1]))
         hash_list.reverse()
-        return tuple(hash_list)
+        return hash_list
 
 if __name__ == '__main__':
     main()
