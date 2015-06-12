@@ -124,10 +124,8 @@ class CrossCorrelate():
         for byte in bytes_obj:
             simple += byte
             fletcher += simple
-        simple = (simple & 255) + (simple >> 8)
-        fletcher = (fletcher & 255) + (fletcher >> 8)
-        simple = (simple & 255) + (simple >> 8)
-        fletcher = (fletcher & 255) + (fletcher >> 8)
+        simple %= 255
+        fletcher %= 255
         return fletcher << 8 | simple
 
     def process_file(self, filepath, chunk_size, file_type='binary'):
@@ -150,7 +148,7 @@ class CrossCorrelate():
         """Convert hash dict into a list so that it can be sorted and displayed
         in descending order with the most frequent hash at the top."""
         hash_list = hash_table[1]
-        hash_list.sort(key=(lambda a: a[1]))
+        hash_list.sort()
         hash_list.reverse()
         return hash_list
 
