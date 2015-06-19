@@ -36,17 +36,19 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("first", help="The first file to compare against in "
                                       "creating the profile.")
-    #parser.add_argument("second", help="The second file to compare against in "
-    #                                    "creating the profile.")
-    #parser.add_argument("profile_path", help="The filepath to the profile that"
-    #                                         " will be used for this"
-    #                                         " correlation.")
+    parser.add_argument("second", help="The second file to compare against in "
+                                        "creating the profile.")
+    parser.add_argument("profile_path", help="The filepath to the profile that"
+                                             " will be used for this"
+                                             " correlation.")
+    parser.add_argument("--chunksize", default=128, type=int, 
+                        help="Set the chunk size for analysis. Default is 128.""")
     args = parser.parse_args()
     cc = CrossCorrelate()
     
-    output = cc.process_file(args.first, 128)
-    for frequency in cc.list_hashes_by_frequency(output.frequencies): # Debug
-        print(frequency)
+    input_f = cc.process_file(args.first, args.chunksize)
+    output_f = cc.process_file(args.second, args.chunksize)
+    
 
 class CrossCorrelate():
     """Cross correlate byte offsets between two files and adds their frequencies
@@ -144,6 +146,11 @@ class CrossCorrelate():
         # This will just give the full filepath if we're on windows.
         return self.InputFile(fp.name.split("/")[-1], file_type, frequencies, chunks) 
 
+    def spatially_analyze_pair(self, input_f, output_f):
+        """Spatially analyze an input/output file pair by comparing the frequency
+        of hashes between chunks in a ratio defined by which file is larger and
+        which is smaller."""
+        
     def list_hashes_by_frequency(self, hash_table):
         """Convert hash dict into a list so that it can be sorted and displayed
         in descending order with the most frequent hash at the top."""
@@ -152,5 +159,84 @@ class CrossCorrelate():
         hash_list.reverse()
         return hash_list
 
+class BayesChunkPredictor():
+    """Build up a bayesian model of the blackbox used to transform inputs to 
+    outputs."""
+    def 
+
+class IntMap():
+    """A mapping object that doesn't use hashes to store values. All values 
+    added must be integers. Only one integer may be mapped to one value. Attempts
+    to add another value pair with the same integer will only overwrite the 
+    previous. 
+    """
+    values = []
+    IntValue = collections.namedtuple("IntValue", ['Int', 'Value'])
+
+    def add(*pair):
+        """Add a pair of Int:Value to be stored in self.values. 
+
+        A binary search is performed on self.values to determine where the new 
+        addition should go. It is then inserted at that location.
+        """
+        Int = pair[0]
+        Value = pair[1]
+        if isinstance(Int, int):
+            insert = self.IntValue(Int, Value)
+            if not self.values:
+                self.values.append(insert)
+            elif len(self.values) is 1:
+                if self.values[0].Int > insert.Int:
+                    self.values.insert(0, insert)
+                else:
+                    self.values.append(insert)
+            else:
+                if insert.Int < values[0].Int:
+                    self.values.insert(0, insert)
+                elif insert.Int == values[0].Int:
+                    self.values[0] = insert
+                elif insert.Int > values[-1].Int:
+                    self.values.append(insert)
+                elif insert.Int == values[-1].Int:
+                    self.values[-1] = insert
+                else:
+                    values_len = len(self.values)
+                    if values_len % 2:
+                        middle = round(values_len / 2)
+                    else:
+                        middle = None
+                    if middle:
+                        if self.values[middle].Int > insert.Int:
+                            anchor = 0
+                        elif self.values[middle].Int == insert.Int:
+                            self.values[middle] = insert
+                        else:
+                            anchor = -1
+                    else:
+                        middle = (values_len / 2, (values_len / 2 + 1))
+                        if insert.Int > self.values[middle[1]].Int:
+                            anchor = -1
+                        elif insert.Int == self.values[middle[1]].Int:
+                            self.values[middle[1]] = insert
+                        else:
+                            anchor = 0
+                    if values_len % 2:
+                        while anchor is 0 or anchor is -1:
+                            
+                        
+                            
+        else:
+            raise ValueError("Value given as mapping was a" + str(type(Int)) 
+                             + "expected an int.")
+    
+    def remove(integer):
+        """Remove a value from the IntMap given by its integer.""" 
+        pass
+
+    def pop(integer):
+        pass
+
+    def retrieve_copy(integer):
+        """Retrieve a copy of a value given by the integer used as a map."""
 if __name__ == '__main__':
     main()
