@@ -31,16 +31,17 @@ import json
 import pprint
 import os
 import collections
+import math
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("first", help="The first file to compare against in "
                                       "creating the profile.")
     parser.add_argument("second", help="The second file to compare against in "
-                                        "creating the profile.")
-    parser.add_argument("profile_path", help="The filepath to the profile that"
-                                             " will be used for this"
-                                             " correlation.")
+                                       "creating the profile.")
+    parser.add_argument("profile_path", default=None, 
+                        help="The filepath to the profile that will be used for this" 
+                             " correlation.")
     parser.add_argument("--chunksize", default=128, type=int, 
                         help="Set the chunk size for analysis. Default is 128.""")
     args = parser.parse_args()
@@ -54,10 +55,10 @@ class CrossCorrelate():
     """Cross correlate byte offsets between two files and adds their frequencies
         to a profile."""
     Chunk = collections.namedtuple('Chunk', ['chunk', 'subset_slices'])
-    InputFile = collections.namedtuple('InputFile', ['name', 'type', 'frequencies', 'chunks'])
+    FileData = collections.namedtuple('FileData', ['name', 'type', 'frequencies', 'chunks'])
     HashSlice = collections.namedtuple('SubHash', ['hash', 'start', 'end'])
     SubSlice = collections.namedtuple('SubSlice', ['start', 'end'])
-    HashFreqSub = collections.namedtuple('HashFreqSub', ['hash', 'frequency', 'subset'])
+    HashTable = collections.namedtuple('HashTable', ['values_table', 'frequency_table'])
 
     def gen_chunks(self, input_file, chunk_size):
         """Chunk file into blocks with size chunk_size and return a
@@ -144,7 +145,7 @@ class CrossCorrelate():
         frequencies = self.create_hash_table(fp, chunk_size)
         chunks = tuple(self.gen_file_chunks(fp, chunk_size))
         # This will just give the full filepath if we're on windows.
-        return self.InputFile(fp.name.split("/")[-1], file_type, frequencies, chunks) 
+        return self.FileData(fp.name.split("/")[-1], file_type, frequencies, chunks) 
 
     def spatially_analyze_pair(self, input_f, output_f):
         """Spatially analyze an input/output file pair by comparing the frequency
@@ -162,81 +163,45 @@ class CrossCorrelate():
 class BayesChunkPredictor():
     """Build up a bayesian model of the blackbox used to transform inputs to 
     outputs."""
-    def 
-
-class IntMap():
-    """A mapping object that doesn't use hashes to store values. All values 
-    added must be integers. Only one integer may be mapped to one value. Attempts
-    to add another value pair with the same integer will only overwrite the 
-    previous. 
-    """
-    values = []
-    IntValue = collections.namedtuple("IntValue", ['Int', 'Value'])
-
-    def add(*pair):
-        """Add a pair of Int:Value to be stored in self.values. 
-
-        A binary search is performed on self.values to determine where the new 
-        addition should go. It is then inserted at that location.
+    def model_blackbox(first, second, profile=None):
+        """Model a black box that transforms an input file into an output file
+        using bayesian statistics. If a profile is given along with the input
+        output pair use that to form priors and analyze the blackbox.
         """
-        Int = pair[0]
-        Value = pair[1]
-        if isinstance(Int, int):
-            insert = self.IntValue(Int, Value)
-            if not self.values:
-                self.values.append(insert)
-            elif len(self.values) is 1:
-                if self.values[0].Int > insert.Int:
-                    self.values.insert(0, insert)
-                else:
-                    self.values.append(insert)
-            else:
-                if insert.Int < values[0].Int:
-                    self.values.insert(0, insert)
-                elif insert.Int == values[0].Int:
-                    self.values[0] = insert
-                elif insert.Int > values[-1].Int:
-                    self.values.append(insert)
-                elif insert.Int == values[-1].Int:
-                    self.values[-1] = insert
-                else:
-                    values_len = len(self.values)
-                    if values_len % 2:
-                        middle = round(values_len / 2)
-                    else:
-                        middle = None
-                    if middle:
-                        if self.values[middle].Int > insert.Int:
-                            anchor = 0
-                        elif self.values[middle].Int == insert.Int:
-                            self.values[middle] = insert
-                        else:
-                            anchor = -1
-                    else:
-                        middle = (values_len / 2, (values_len / 2 + 1))
-                        if insert.Int > self.values[middle[1]].Int:
-                            anchor = -1
-                        elif insert.Int == self.values[middle[1]].Int:
-                            self.values[middle[1]] = insert
-                        else:
-                            anchor = 0
-                    if values_len % 2:
-                        while anchor is 0 or anchor is -1:
-                            
-                        
-                            
+        pass
+
+    def prior_homogenity(self, first, second=None, profile=None):
+        """Calculate the prior for data homogenity by looking at the amount of
+        entropy in the distribution of hashes in input/output pairs and between
+        input output pairs.
+
+        Returns a tuple consisting of the entropy of the first and second files
+        hash frequencies.
+        """
+        if len(first.chunks) is 1:
+            first_total_subsets = len(first.chunks[0].subset_slices)
         else:
-            raise ValueError("Value given as mapping was a" + str(type(Int)) 
-                             + "expected an int.")
-    
-    def remove(integer):
-        """Remove a value from the IntMap given by its integer.""" 
-        pass
+            print(first.chunks)
+            first_total_subsets = (
+                (len(first.chunks[0].subset_slices) * len(first.chunks) - 1)
+                + len(first.chunks[-1].subset_slices))
+        first_frequencies = first.frequencies.frequency_table
+        first_entropy = 0
+        for frequency in first_frequencies:
+            probability = frequency[1] / first_total_subsets
+            first_entropy += probability * math.log(1/probability, 2)
+        if second:
+            if len(second.chunks) is 1:
+                second_total_subsets = len(second.chunks[0].subset_slices)
+                second_total_subsets = (
+                    (len(second.chunks[0].subset_slices) * (len(second.chunks) - 1))
+                    + len(first.chunks[-1].subset_slices))
+            second_frequencies = second.frequencies.frequency_table
+            second_entropy = 0
+            for frequency in second_frequencies:
+                probability = frequency[1] / second_total_subsets
+                second_entropy += probability * math.log(1/probability, 2)
+        return (first_entropy, second_entropy)
 
-    def pop(integer):
-        pass
-
-    def retrieve_copy(integer):
-        """Retrieve a copy of a value given by the integer used as a map."""
 if __name__ == '__main__':
     main()
