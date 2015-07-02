@@ -32,6 +32,7 @@ import pprint
 import os
 import collections
 import math
+import random
 
 def main():
     parser = argparse.ArgumentParser()
@@ -39,7 +40,7 @@ def main():
                                       "creating the profile.")
     parser.add_argument("second", help="The second file to compare against in "
                                        "creating the profile.")
-    parser.add_argument("profile_path", default=None, 
+    parser.add_argument("--profile", default=None, 
                         help="The filepath to the profile that will be used for this" 
                              " correlation.")
     parser.add_argument("--chunksize", default=128, type=int, 
@@ -49,7 +50,7 @@ def main():
     
     input_f = cc.process_file(args.first, args.chunksize)
     output_f = cc.process_file(args.second, args.chunksize)
-    
+    return True
 
 class CrossCorrelate():
     """Cross correlate byte offsets between two files and adds their frequencies
@@ -163,11 +164,32 @@ class CrossCorrelate():
 class BayesChunkPredictor():
     """Build up a bayesian model of the blackbox used to transform inputs to 
     outputs."""
+    class SizeWindow():
+        """An object representing a ratio in size between an input/output pair."""
+        def __init__(self, first, second):
+            if len(first.chunks) > len(second.chunks):
+                pass
+            elif len(first.chunks) == len(second.chunks):
+                pass
+            else:
+                pass
+
     def model_blackbox(first, second, profile=None):
         """Model a black box that transforms an input file into an output file
         using bayesian statistics. If a profile is given along with the input
         output pair use that to form priors and analyze the blackbox.
         """
+        # global_priors = {"example_prior":(<value_float>, update_method)}
+        pass
+
+    def update_global_prior(self, prior, update_method):
+        """Update a global prior given the prior probability and its update method
+        function."""
+        pass
+
+    def gen_global_priors(self, first, second, profile=None):
+        """Return a dictionary containing the global priors/hyperparameters for
+        the bayesian analysis."""
         pass
 
     def prior_homogenity(self, first, second=None, profile=None):
@@ -202,6 +224,94 @@ class BayesChunkPredictor():
                 probability = frequency[1] / second_total_subsets
                 second_entropy += probability * math.log(1/probability, 2)
         return (first_entropy, second_entropy)
+
+
+class Profile():
+    """A class that converts stored JSON profiles for cross-correlate into 
+    something that can be called like a named tuple."""
+    def __init__(self, profile_data):
+        pass
+
+
+class EqualRandomVariable():
+    """A discrete random variable with an equally weighted probability mass
+    distribution across outcomes."""
+    def __init__(self):
+        self.pool = set()
+        
+    def add(self, item):
+        """Add an item to the pool of outcomes. If set append elements to pool
+        directly."""
+        if isinstance(item, set):
+            self.pool = self.pool.union(item)
+        else:
+            self.pool.add(item)
+
+    def remove(self, item):
+        """Remove an item from the pool of outcomes."""
+        try:
+            self.pool.remove(item)
+        except KeyError:
+            return False
+        return True
+
+    def draw(self, sample_size):
+        """Draw <sample_size> elements from the pool and return
+        them as a list."""
+        return random.sample(self.pool, sample_size)
+
+
+class WeightedRandomVariable():
+    """A discrete random variable with an uneven probability mass function."""
+    def __init__(self):
+        """The pool is stored as a dictionary where items are mapped to a count
+        and a running total is kept so that it is easy to determine the 
+        probability of any given outcome."""
+        self.pool = {}
+        self.total = 0
+        self.rangen = random.Random()
+    
+    def add(self, item, weight=1):
+        """Adds an item to the pool or increments its weighting if already
+        there."""
+        if weight < 1:
+            raise ValueError("The weight given must be at least one.")
+        elif not isinstance(weight, int):
+            raise ValueError("The weight given must be an integer.")
+        try:
+            self.pool[item] += weight
+            self.total += weight
+        except KeyError:
+            self.pool[item] = 1
+            self.total += 1
+        return True
+
+    def remove(self, item):
+        try:
+            self.total -= self.pool.pop(item)
+        except KeyError:
+            return False
+        return True
+
+    def probability_mass(self, item):
+        """Returns the probability that a given item will be returned by draw().
+        """
+        return self.pool[item] / self.total
+        
+    def draw(self):
+        """Draw an item at random according to its weight in the PMF."""
+        # Lazy algorithm involving summation and a for loop.
+        # If this turns out to be too slow I'll switch to a sorted list of
+        # tuples for the pool and draw from it with a binary search consisting
+        # of lookups to half-sums of the list that tell you what portion of the
+        # data structure to search.
+        drawn = self.rangen.randrange(self.total)
+        for outcome in self.pool:
+            if drawn - self.pool[outcome] < 0 or drawn - self.pool[outcome] == 0:
+                return outcome
+            else:
+                drawn -= self.pool[outcome]
+        raise Exception("draw() did not complete properly.")
 
 if __name__ == '__main__':
     main()
