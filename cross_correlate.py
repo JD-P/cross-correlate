@@ -282,8 +282,8 @@ class WeightedRandomVariable():
             self.pool[item] += weight
             self.total += weight
         except KeyError:
-            self.pool[item] = 1
-            self.total += 1
+            self.pool[item] = weight
+            self.total += weight
         return True
 
     def remove(self, item):
